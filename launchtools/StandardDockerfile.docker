@@ -9,6 +9,11 @@ RUN apt install -y git wget build-essential python3.11 python3.11-venv python3.1
 # Install dependencies for controlnet preprocessors
 RUN apt install -y libglib2.0-0 libgl1
 
+# Install dotnet 10 alongside the base image's dotnet 8
+RUN wget https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh
+RUN bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet
+RUN rm /tmp/dotnet-install.sh
+
 # The base image sets this to 8080, which conflicts with Swarm's own URL setting
 ENV ASPNETCORE_HTTP_PORTS=
 
