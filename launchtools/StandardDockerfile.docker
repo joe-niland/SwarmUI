@@ -9,6 +9,9 @@ RUN apt install -y git wget build-essential python3.11 python3.11-venv python3.1
 # Install dependencies for controlnet preprocessors
 RUN apt install -y libglib2.0-0 libgl1
 
+# The base image sets this to 8080, which conflicts with Swarm's own URL setting
+ENV ASPNETCORE_HTTP_PORTS=
+
 # Copy swarm's files into the docker container
 COPY . ./SwarmUI
 
