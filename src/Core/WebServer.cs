@@ -145,6 +145,8 @@ public class WebServer
         builder.Services.AddRazorPages();
         builder.Services.AddResponseCompression();
         builder.Logging.SetMinimumLevel(LogLevel);
+        // Swarm doesn't configure Data Protection, so its "no XML encryptor" warning on non-Windows hosts is noise
+        builder.Logging.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.Error);
         WebApp = builder.Build();
         WebApp.Use(async (context, next) =>
         {
