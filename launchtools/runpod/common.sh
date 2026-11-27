@@ -58,11 +58,24 @@ json_field() {
 # create_pod NAME SCRIPT [ENV_VAR_NAME...]
 # Creates a pod on the network volume that runs SCRIPT with `bash -c`.
 # RunPod places the pod in the volume's data centre.
+# Tries each GPU type in RUNPOD_GPU_TYPE in order, until one is in stock there.
 # The named environment variables are copied into the pod.
-# Prints the API response.
+# Prints the API response. If every GPU type fails, prints each failure to stderr.
 create_pod() {
-    POD_NAME="$1" POD_SCRIPT="$2" VOLUME_MOUNT="$VOLUME_MOUNT" WORKER_PORT="$WORKER_PORT" \
-        MIN_CUDA_VERSION="$MIN_CUDA_VERSION" python3 -c "$CREATE_POD_BODY_PY" "${@:3}" | runpod_api POST /pods -
+    local gpu_types gpu_type response errors=""
+    IFS=, read -ra gpu_types <<<"$RUNPOD_GPU_TYPE"
+    for gpu_type in "${gpu_types[@]}"; do
+        read -r gpu_type <<<"$gpu_type"
+        if response=$(GPU_TYPE="$gpu_type" POD_NAME="$1" POD_SCRIPT="$2" VOLUME_MOUNT="$VOLUME_MOUNT" \
+            WORKER_PORT="$WORKER_PORT" MIN_CUDA_VERSION="$MIN_CUDA_VERSION" \
+            python3 -c "$CREATE_POD_BODY_PY" "${@:3}" | runpod_api POST /pods - 2>&1); then
+            echo "$response"
+            return
+        fi
+        errors+="$gpu_type: $response"$'\n'
+    done
+    >&2 printf '%s' "$errors"
+    return 1
 }
 
 CREATE_POD_BODY_PY=$(
@@ -74,7 +87,7 @@ print(json.dumps({
     "name": env["POD_NAME"],
     "image": env["RUNPOD_IMAGE"],
     "cloud": "SECURE",
-    "gpu": {"id": env["RUNPOD_GPU_TYPE"], "count": 1, "minCudaVersion": env["MIN_CUDA_VERSION"]},
+    "gpu": {"id": env["GPU_TYPE"], "count": 1, "minCudaVersion": env["MIN_CUDA_VERSION"]},
     "disk": int(env["RUNPOD_CONTAINER_DISK_GB"]),
     "mounts": {"network": [{"volumeId": env["RUNPOD_NETWORK_VOLUME_ID"], "path": env["VOLUME_MOUNT"]}]},
     "ports": [f"{env['WORKER_PORT']}/http"],

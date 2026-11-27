@@ -18,30 +18,35 @@ Pods are on-demand Secure Cloud pods, because RunPod network volumes only work w
 Copy `runpod.env.example` to `~/.config/swarmui/runpod.env` and fill it in. Keep this file outside
 the repo, because it holds your API key. To use a different path, set `RUNPOD_ENV_FILE`.
 
-Check that `RUNPOD_GPU_TYPE` matches an ID that RunPod lists:
+Check that each ID in `RUNPOD_GPU_TYPE` matches an ID that RunPod lists:
 
 ```sh
 launchtools/runpod/provision.sh gpus
 ```
 
+`RUNPOD_GPU_TYPE` can list several GPU types, separated by commas, in order of preference. Each new
+pod gets the first type that's in stock. If none is in stock, the job fails with each type's error.
+
 ## 2. Create the network volume
 
 The volume lives in one data centre, and every worker pod runs there. So the GPUs you can get are
 the ones that data centre has free at the time. The volume can't move, so choose a data centre
-that usually has your GPU type.
+that usually has one of your GPU types.
 
 With `RUNPOD_DATA_CENTER` left empty, this command lists data centres that support network volumes
-and have your GPU type:
+and have one of your GPU types in stock now:
 
 ```sh
 launchtools/runpod/provision.sh volume
 ```
 
 The list is in order of preference: Oceania, Asia, North America with the US west coast first, then
-other regions. The **GPU NOW** column shows how many of your GPU type are free at this moment. It
-changes within minutes, so it's only a rough guide. If a data centre shows `NONE` or `LOW` every
-time you check, consider another one. Put your choice in `RUNPOD_DATA_CENTER` and run the command
-again to create the volume.
+other regions. RunPod reports only GPU types that are in stock, so a data centre that has your GPU
+type but none free right now doesn't appear. Stock changes within minutes, so check a few times
+before you choose. The **IN STOCK NOW** column shows which of your GPU types each data centre has
+free, and how many (`LOW`, `MEDIUM` or `HIGH`). A data centre that lists more of your types gives a
+pod more to fall back on. Put your choice in `RUNPOD_DATA_CENTER` and run the command again to
+create the volume.
 Then put the volume ID it prints into `RUNPOD_NETWORK_VOLUME_ID`.
 
 To see the list again later, run `provision.sh datacenters`.

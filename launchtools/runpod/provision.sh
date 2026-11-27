@@ -15,14 +15,16 @@ source "$SCRIPT_DIR/common.sh"
 load_env_file
 require_vars RUNPOD_API_KEY
 
-# Lists data centres that support network volumes and have the GPU type, in order of
-# preference: Oceania, Asia, then North America with the US west coast first, then other
-# regions. The GPU column shows availability at this moment, for information only.
+# Lists data centres that support network volumes and have any of the GPU types in stock now,
+# in order of preference: Oceania, Asia, then North America with the US west coast first, then
+# other regions. RunPod lists only GPU types that are in stock, so a data centre that has your
+# GPU type but has none free at this moment doesn't appear. The IN STOCK NOW column shows each
+# of your GPU types the data centre has free, in the order you listed them, for information only.
 SUGGEST_DATA_CENTERS_PY=$(
     cat <<'PY'
 import json, sys
 
-gpu = sys.argv[1]
+gpus = [g.strip() for g in sys.argv[1].split(",") if g.strip()]
 REGION_ORDER = ["OCEANIA", "ASIA", "NORTH_AMERICA"]
 WEST_COAST_PREFIXES = ("US-CA-", "US-OR-", "US-WA-", "US-NV-", "US-AZ-", "US-UT-", "US-ID-", "CA-BC-")
 
@@ -30,22 +32,28 @@ rows = []
 for dc in json.load(sys.stdin)["dataCenters"]:
     if not dc.get("networkVolumeTypes"):
         continue
-    level = next(
-        (g["availability"] for g in dc.get("gpuAvailability") or [] if gpu in (g.get("id"), g.get("name"))),
-        None,
-    )
-    if level is None:
+    available = dc.get("gpuAvailability") or []
+    in_stock = [
+        f"{g['name']}:{g['availability']}"
+        for gpu in gpus
+        for g in available
+        if gpu in (g.get("id"), g.get("name"))
+    ]
+    if not in_stock:
         continue
     region = dc["region"]
     region_rank = REGION_ORDER.index(region) if region in REGION_ORDER else len(REGION_ORDER)
     west_rank = 0 if dc["id"].startswith(WEST_COAST_PREFIXES) else 1
-    rows.append((region_rank, west_rank, dc["id"], level, region, dc["name"]))
+    rows.append((region_rank, west_rank, dc["id"], region, ", ".join(in_stock)))
 
 if not rows:
-    sys.exit(f"No data centre with network volumes has {gpu}.")
-print(f"{'ID':<12} {'GPU NOW':<8} {'REGION':<14} NAME")
-for *_, dc_id, level, region, name in sorted(rows):
-    print(f"{dc_id:<12} {level:<8} {region:<14} {name}")
+    sys.exit(
+        f"No data centre with network volumes has any of these GPU types in stock now: {', '.join(gpus)}.\n"
+        "Stock changes within minutes. Try again later, or add more GPU types to RUNPOD_GPU_TYPE."
+    )
+print(f"{'ID':<12} {'REGION':<14} IN STOCK NOW")
+for *_, dc_id, region, in_stock in sorted(rows):
+    print(f"{dc_id:<12} {region:<14} {in_stock}")
 PY
 )
 
