@@ -46,16 +46,22 @@ This starts a setup pod that clones the repo, installs .NET and downloads the mo
 
 When SwarmUI is ready, open the address the script printed and finish the installer:
 
-- Choose **ComfyUI (Local)** as the backend and the standard (NVIDIA) install.
-- Choose no extra models.
+- Choose **Customize Settings**, not **Just Install**. Just Install downloads the default models
+  onto the pod's own disk, where they're lost and can fill it.
+- For who will use it, choose **Just Yourself, with LAN access**.
+- Choose **ComfyUI** as the backend.
+- Untick every model.
 
 Protect the worker before you finish. Its address is public, so anyone who learns it could use
 it:
 
-1. Under **Server → Server Configuration → User Authorization**, turn on **AuthorizationRequired**
-   and create an account.
-2. Give that account the **Automated Control** permission.
-3. In the **User** tab, create an auth token. Keep it for step 5.
+1. Under **Server → Users**, add an account with the **owner** role. That role includes the
+   **Automated Control** permission your local SwarmUI needs.
+2. Under **Server → Server Configuration → User Authorization**, turn on **AuthorizationRequired**,
+   turn off **AllowLocalhostBypass**, and save.
+3. Reload the page and log in as the new account.
+4. In the **User** tab, under **Swarm Auth Tokens**, click **Create New Auth Token**. Keep the token
+   for step 5. It belongs to the account you're logged in as, so create it after step 3.
 
 Then click **Shutdown Server** under **Server → Server Info**. The setup pod packs the install onto
 the volume, copies the worker scripts there and deletes itself. If a step fails, the pod stays up
