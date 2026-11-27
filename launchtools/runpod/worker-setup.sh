@@ -14,9 +14,16 @@ source "$SCRIPT_DIR/common.sh"
 require_vars SWARM_RUNPOD_API_KEY RUNPOD_POD_ID
 RUNPOD_API_KEY="$SWARM_RUNPOD_API_KEY"
 
+# Logs how full the pod's disk is and what uses it, to size RUNPOD_CONTAINER_DISK_GB.
+report_disk() {
+    df -h /
+    du -xsh "$LOCAL_SWARM_DIR" "$LOCAL_SWARM_DIR/dlbackend" "$HOME/.cache" "$HOME/.nuget" 2>/dev/null || true
+}
+
 keep_pod_on_failure() {
     local status=$?
     if [ "$status" -ne 0 ]; then
+        report_disk
         >&2 echo "Setup failed. This pod stays up so you can read its logs."
         >&2 echo "Delete it when you're done: provision.sh delete $RUNPOD_POD_ID"
         sleep infinity
@@ -45,6 +52,7 @@ echo "SwarmUI is starting. When it's ready, open this pod's port $WORKER_PORT th
 echo "When you've finished setting it up, click Shutdown Server under Server → Server Info to save the install."
 ./launch-linux.sh --launch_mode none --host 0.0.0.0
 
+report_disk
 install_name=$(basename "$LOCAL_SWARM_DIR")
 echo "Packing the install into $INSTALL_ARCHIVE"
 SECONDS=0
