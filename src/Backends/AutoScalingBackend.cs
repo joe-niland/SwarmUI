@@ -75,6 +75,8 @@ public class AutoScalingBackend : AbstractT2IBackend
     public override async Task Init()
     {
         CanLoadModels = false;
+        // Never offer this placeholder as a generation slot: a request that sees it as a running backend fails instead of waiting for a launched backend to finish loading.
+        MaxUsages = 0;
         TimeOfNextStart = 0;
         TimeOfNextStop = 0;
         if (Settings.MaxBackends <= 0 || string.IsNullOrWhiteSpace(Settings.StartScript))
