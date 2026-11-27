@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Writes a header-only copy of each "stub" model in models.txt into the local Models/ folder.
 # The local SwarmUI reads model details from the header alone, so it can list these models and
-# send jobs for them while no worker is running. The real files live on the network volume.
+# send jobs for them while no worker is running. The real files live on the global volume.
 # Existing files are left alone.
 set -euo pipefail
 

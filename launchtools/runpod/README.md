@@ -1,11 +1,12 @@
 # RunPod auto-scaling workers
 
 These scripts let a SwarmUI install with no GPU send jobs to RunPod. When a job arrives and no
-worker is running, SwarmUI's Auto Scaling Backend starts a RunPod pod. The pod runs SwarmUI with
-ComfyUI from a network volume that holds the install and the models. Once the worker has been idle
-for a set time, SwarmUI shuts it down and the pod deletes itself.
+worker is running, SwarmUI's Auto Scaling Backend starts a RunPod pod. The pod unpacks a saved
+SwarmUI and ComfyUI install from a RunPod global volume, and reads the models from the same volume.
+Once the worker has been idle for a set time, SwarmUI shuts it down and the pod deletes itself.
 
-Pods are on-demand Secure Cloud pods, because RunPod network volumes only work with Secure Cloud.
+A global volume can be mounted in any RunPod data centre, so each pod runs wherever its GPU type
+is in stock. Pods are on-demand Secure Cloud pods.
 
 ## What you need
 
@@ -18,38 +19,21 @@ Pods are on-demand Secure Cloud pods, because RunPod network volumes only work w
 Copy `runpod.env.example` to `~/.config/swarmui/runpod.env` and fill it in. Keep this file outside
 the repo, because it holds your API key. To use a different path, set `RUNPOD_ENV_FILE`.
 
-Check that each ID in `RUNPOD_GPU_TYPE` matches an ID that RunPod lists:
+`RUNPOD_GPU_TYPE` is the list of GPU types pods may use, separated by commas. Each new pod gets the
+cheapest type on the list that's in stock. If none can be created, the job fails with each type's
+error. To see each GPU type's ID, VRAM, price per hour and current stock:
 
 ```sh
 launchtools/runpod/provision.sh gpus
 ```
 
-`RUNPOD_GPU_TYPE` can list several GPU types, separated by commas, in order of preference. Each new
-pod gets the first type that's in stock. If none is in stock, the job fails with each type's error.
-
-## 2. Create the network volume
-
-The volume lives in one data centre, and every worker pod runs there. So the GPUs you can get are
-the ones that data centre has free at the time. The volume can't move, so choose a data centre
-that usually has one of your GPU types.
-
-With `RUNPOD_DATA_CENTER` left empty, this command lists data centres that support network volumes
-and have one of your GPU types in stock now:
+## 2. Create the global volume
 
 ```sh
 launchtools/runpod/provision.sh volume
 ```
 
-The list is in order of preference: Oceania, Asia, North America with the US west coast first, then
-other regions. RunPod reports only GPU types that are in stock, so a data centre that has your GPU
-type but none free right now doesn't appear. Stock changes within minutes, so check a few times
-before you choose. The **IN STOCK NOW** column shows which of your GPU types each data centre has
-free, and how many (`LOW`, `MEDIUM` or `HIGH`). A data centre that lists more of your types gives a
-pod more to fall back on. Put your choice in `RUNPOD_DATA_CENTER` and run the command again to
-create the volume.
-Then put the volume ID it prints into `RUNPOD_NETWORK_VOLUME_ID`.
-
-To see the list again later, run `provision.sh datacenters`.
+Put the volume ID it prints into `RUNPOD_GLOBAL_VOLUME_ID`.
 
 ## 3. Install SwarmUI and the models onto the volume
 
@@ -57,8 +41,8 @@ To see the list again later, run `provision.sh datacenters`.
 launchtools/runpod/provision.sh setup
 ```
 
-This starts a setup pod that clones the repo onto the volume, installs .NET and downloads the
-models listed in `models.txt`. Then it starts SwarmUI. Follow the pod's logs in the RunPod console.
+This starts a setup pod that clones the repo, installs .NET and downloads the models listed in
+`models.txt` onto the volume. Then it starts SwarmUI. Follow the pod's logs in the RunPod console.
 
 When SwarmUI is ready, open the address the script printed and finish the installer:
 
@@ -73,14 +57,18 @@ it:
 2. Give that account the **Automated Control** permission.
 3. In the **User** tab, create an auth token. Keep it for step 5.
 
-Then delete the setup pod:
+Then click **Shutdown Server** under **Server → Server Info**. The setup pod packs the install onto
+the volume, copies the worker scripts there and deletes itself. If a step fails, the pod stays up
+so you can read its logs. Delete it yourself when you're done:
 
 ```sh
 launchtools/runpod/provision.sh delete POD_ID
 ```
 
-To change the models later, edit `models.txt` and run steps 3 and 4 again. Finished downloads are
-skipped.
+Run this step again to update SwarmUI or ComfyUI, after you change the scripts in this folder, or
+to change the models in `models.txt` (then run step 4 too). Worker pods use the copies saved on the volume. Each run
+starts from the saved install, so your settings and login stay. Finished downloads are skipped.
+Don't run jobs while setup is running: it rewrites the saved install.
 
 ## 4. Add stub models to your local SwarmUI
 
@@ -127,7 +115,8 @@ websocket and has no such limit. Save it in a preset with your other Wan setting
 1. You submit a job. With no worker running, SwarmUI runs `autoscale-start.sh`.
 2. The script creates a pod and gives SwarmUI the pod's RunPod proxy address. SwarmUI keeps trying
    to connect for about 15 minutes while the pod boots.
-3. The pod runs `worker-start.sh`, which starts SwarmUI from the volume.
+3. The pod runs `worker-start.sh` from the volume. It unpacks the install to the pod's own disk,
+   links in the models from the volume and starts SwarmUI.
 4. Your local SwarmUI connects, sends the job and keeps checking in with the worker.
 5. After **MinIdleTime** with no jobs, your local SwarmUI shuts the worker down, and the pod
    deletes itself.
@@ -139,9 +128,10 @@ The pod also deletes itself in these cases:
 
 ## Costs
 
-- **Network volume**: billed every month, whether or not a pod is running.
+- **Global volume**: billed every month for the space used, whether or not a pod is running. Reads
+  and writes have a small charge per request too.
 - **Worker pod**: billed per second, from creation until it deletes itself. This includes boot
-  time, model loading and the idle time before shutdown.
+  time, unpacking the install, model loading and the idle time before shutdown.
 
 If a pod can't delete itself, `worker-start.sh` logs an error and the pod keeps billing. To list
 any pods these scripts created that are still there:

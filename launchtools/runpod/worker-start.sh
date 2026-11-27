@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Runs on each worker pod that autoscale-start.sh creates.
-# Starts SwarmUI as a worker, then deletes this pod when SwarmUI stops for any reason,
-# so a stopped worker never keeps billing.
+# Runs on each worker pod that autoscale-start.sh creates, from the copy on the global volume.
+# Unpacks the SwarmUI install to local disk, links in the models and starts SwarmUI as a worker.
+# Deletes this pod when it stops for any reason, so a stopped worker never keeps billing.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
@@ -28,7 +28,13 @@ delete_this_pod() {
 }
 trap delete_this_pod EXIT
 
-cd "$WORKER_SWARM_DIR"
+echo "Unpacking $INSTALL_ARCHIVE"
+SECONDS=0
+tar -xf "$INSTALL_ARCHIVE" -C "$(dirname "$LOCAL_SWARM_DIR")"
+echo "Unpacked in $SECONDS seconds."
+link_models
+
+cd "$LOCAL_SWARM_DIR"
 timeout "${SWARM_WORKER_MAX_HOURS}h" ./launch-linux.sh \
     --launch_mode none \
     --host 0.0.0.0 \

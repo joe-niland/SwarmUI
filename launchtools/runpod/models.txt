@@ -1,4 +1,4 @@
-# Models downloaded onto the network volume by worker-setup.sh.
+# Models downloaded onto the global volume by worker-setup.sh.
 # Format: <stub|-> <path under Models/> <url>
 # "stub" marks models you pick in the UI. make-stubs.sh writes a header-only copy of each one
 # into your local Models/ folder, so the local SwarmUI lists them while no worker is running.
