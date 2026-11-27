@@ -97,8 +97,9 @@ def gpu_list(data):
         data = next((v for v in data.values() if isinstance(v, list)), [])
     return data
 
+# Secure Cloud price per hour, or None. RunPod gives 0 for types it doesn't price.
 def secure_price(gpu):
-    return (gpu.get("price") or {}).get("secure")
+    return (gpu.get("price") or {}).get("secure") or None
 PY
 )
 
